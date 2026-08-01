@@ -1,0 +1,6 @@
+{
+  "name": "AI Studio Workspace",
+  "description": "A high-performance cyber intelligence command workspace featuring Client Case Management, AI Prompt Lab, Creative Visualizer, and Smart Notes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
