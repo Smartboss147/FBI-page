@@ -37,8 +37,23 @@ import {
   X,
   Printer,
   Download,
-  Grid
+  Grid,
+  Copy,
+  Check,
+  ShieldCheck,
+  Layers,
+  FileCheck,
+  ExternalLink
 } from 'lucide-react';
+
+export interface PendingEvidenceImage {
+  id: string;
+  url: string;
+  title: string;
+  caption?: string;
+  fileName: string;
+  fileSize: string;
+}
 
 export interface ProgressUpdate {
   id: string;
@@ -80,6 +95,8 @@ export interface Victim {
 export interface ClientCase {
   id: string;
   caseNumber: string;
+  trackingId: string;
+  verificationNumber: string;
   name: string;
   alias: string;
   classification: 'LEVEL 5 - TOP SECRET' | 'LEVEL 4 - CRITICAL' | 'LEVEL 3 - HIGH' | 'LEVEL 2 - MEDIUM';
@@ -103,6 +120,8 @@ const INITIAL_CASES: ClientCase[] = [
   {
     id: 'case-101',
     caseNumber: 'CY-2026-8821',
+    trackingId: 'FBI‑INTL‑0926‑874512',
+    verificationNumber: 'VCN‑473829',
     name: 'Marcus Sterling',
     alias: 'Vanguard-9',
     classification: 'LEVEL 4 - CRITICAL',
@@ -192,6 +211,8 @@ const INITIAL_CASES: ClientCase[] = [
   {
     id: 'case-102',
     caseNumber: 'CY-2026-4409',
+    trackingId: 'FBI‑INTL‑0926‑874512',
+    verificationNumber: 'VCN‑473829',
     name: 'Aether Synth Dynamics',
     alias: 'PROJECT APEX',
     classification: 'LEVEL 5 - TOP SECRET',
@@ -256,6 +277,8 @@ const INITIAL_CASES: ClientCase[] = [
   {
     id: 'case-103',
     caseNumber: 'CY-2026-1102',
+    trackingId: 'FBI‑INTL‑0926‑874512',
+    verificationNumber: 'VCN‑473829',
     name: 'Elena Rostova',
     alias: 'Shadow_Cipher',
     classification: 'LEVEL 3 - HIGH',
@@ -359,15 +382,30 @@ export const ClientCaseManagement: React.FC = () => {
   const [newVictimName, setNewVictimName] = useState('');
   const [newVictimPhoto, setNewVictimPhoto] = useState('');
   const [newInvestigatedDuration, setNewInvestigatedDuration] = useState('48 Hours');
+  const [newTrackingId, setNewTrackingId] = useState('FBI‑INTL‑0926‑874512');
+  const [newVerificationNumber, setNewVerificationNumber] = useState('VCN‑473829');
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const handleCopyText = (text: string, fieldId: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldId);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   // Editing Case / Nature State
   const [isEditingNature, setIsEditingNature] = useState(false);
   const [editedNatureText, setEditedNatureText] = useState('');
 
-  // Add Photo Form State
+  // Add Photo & Multi-Image Upload Form State
   const [photoTitle, setPhotoTitle] = useState('');
   const [photoUrlInput, setPhotoUrlInput] = useState('');
   const [photoCaption, setPhotoCaption] = useState('');
+  const [pendingImages, setPendingImages] = useState<PendingEvidenceImage[]>([]);
+  const [isReadingFiles, setIsReadingFiles] = useState(false);
+  const [isDraggingModal, setIsDraggingModal] = useState(false);
+  const [isDraggingGallery, setIsDraggingGallery] = useState(false);
+  const [batchCaption, setBatchCaption] = useState('');
+  const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
 
   // Add Suspect Form State
   const [suspectName, setSuspectName] = useState('');
@@ -392,6 +430,7 @@ export const ClientCaseManagement: React.FC = () => {
   const [newUpdateAuthor, setNewUpdateAuthor] = useState('AGENT ON-DUTY');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const multiFileInputRef = useRef<HTMLInputElement>(null);
   const suspectFileInputRef = useRef<HTMLInputElement>(null);
   const victimFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -618,6 +657,8 @@ export const ClientCaseManagement: React.FC = () => {
         <h1>${caseData.name} (${caseData.alias})</h1>
         <div class="badge-row">
           <span class="badge">${caseData.caseNumber}</span>
+          <span class="badge badge-cyan">TRACKING ID: ${caseData.trackingId}</span>
+          <span class="badge badge-cyan">VERIFICATION NO: ${caseData.verificationNumber}</span>
           <span class="badge badge-crit">${caseData.classification}</span>
           <span class="badge badge-cyan">STATUS: ${caseData.status}</span>
           <span class="badge badge-dur">DURATION: ${caseData.investigatedDuration || '48 Hours'}</span>
@@ -625,12 +666,22 @@ export const ClientCaseManagement: React.FC = () => {
       </div>
       <div style="text-align: right; font-size: 10px; color: #334155;">
         <div><strong>ASSIGNED OFFICER:</strong> ${caseData.assignedOfficer}</div>
+        <div><strong>TRACKING ID:</strong> ${caseData.trackingId}</div>
+        <div><strong>VERIFICATION NO:</strong> ${caseData.verificationNumber}</div>
         <div><strong>INCIDENT DATE:</strong> ${caseData.incidentDate}</div>
         <div><strong>REPORT GENERATED:</strong> ${new Date().toLocaleString()}</div>
       </div>
     </div>
 
-    <div class="grid-4">
+    <div class="grid-4" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 16px;">
+      <div class="box">
+        <div class="box-label">Tracking ID:</div>
+        <div class="box-val" style="color: #0369a1; font-family: monospace;">${caseData.trackingId}</div>
+      </div>
+      <div class="box">
+        <div class="box-label">Verification Number:</div>
+        <div class="box-val" style="color: #047857; font-family: monospace;">${caseData.verificationNumber}</div>
+      </div>
       <div class="box">
         <div class="box-label">Jurisdiction</div>
         <div class="box-val">${caseData.jurisdiction}</div>
@@ -726,7 +777,7 @@ export const ClientCaseManagement: React.FC = () => {
     </table>
 
     <div class="footer">
-      CONFIDENTIAL DOCUMENT — CYBER FBI TASK FORCE SUMMARY REPORT — FOR OFFICIAL AGENCY USE ONLY
+      CONFIDENTIAL DOCUMENT — CYBER FBI TASK FORCE SUMMARY REPORT — TRACKING ID: ${caseData.trackingId} | VERIFICATION NUMBER: ${caseData.verificationNumber} — FOR OFFICIAL AGENCY USE ONLY
     </div>
   </body>
 </html>`;
@@ -801,14 +852,92 @@ export const ClientCaseManagement: React.FC = () => {
     return items;
   };
 
+  // Multi-file reading handler (converts selected files to base64 Data URLs)
+  const handleMultiFileUpload = async (files: FileList | File[]) => {
+    if (!files || files.length === 0) return;
+    setIsReadingFiles(true);
+
+    const fileList = Array.from(files).filter(
+      (f) => f.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|bmp|svg)$/i.test(f.name)
+    );
+
+    if (fileList.length === 0) {
+      setIsReadingFiles(false);
+      return;
+    }
+
+    const readPromises = fileList.map((file, idx) => {
+      return new Promise<PendingEvidenceImage>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const rawName = file.name || `evidence_${idx + 1}`;
+          const baseName = rawName.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+          const cleanTitle = baseName ? baseName.toUpperCase() : `EVIDENCE CAPTURE ${idx + 1}`;
+
+          let sizeStr = '';
+          if (file.size) {
+            const sizeKb = file.size / 1024;
+            sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${Math.round(sizeKb)} KB`;
+          }
+
+          resolve({
+            id: `pending-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
+            url: reader.result as string,
+            title: cleanTitle,
+            caption: 'Classified evidentiary image capture.',
+            fileName: file.name || `image_${idx + 1}.jpg`,
+            fileSize: sizeStr
+          });
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    const loadedImages = await Promise.all(readPromises);
+    setPendingImages((prev) => [...prev, ...loadedImages]);
+    setIsReadingFiles(false);
+    setShowAddPhotoModal(true);
+  };
+
+  const handleRemovePendingImage = (id: string) => {
+    setPendingImages((prev) => prev.filter((img) => img.id !== id));
+  };
+
+  const handleUpdatePendingImageTitle = (id: string, newTitle: string) => {
+    setPendingImages((prev) =>
+      prev.map((img) => (img.id === id ? { ...img, title: newTitle } : img))
+    );
+  };
+
+  const handleAddUrlToPending = () => {
+    if (!photoUrlInput.trim()) return;
+    const newPending: PendingEvidenceImage = {
+      id: `pending-url-${Date.now()}`,
+      url: photoUrlInput.trim(),
+      title: photoTitle.trim() || 'REMOTE EVIDENCE CAPTURE',
+      caption: photoCaption.trim() || 'Classified remote source evidentiary capture.',
+      fileName: 'Remote Web Asset',
+      fileSize: 'REMOTE'
+    };
+    setPendingImages((prev) => [...prev, newPending]);
+    setPhotoUrlInput('');
+    setPhotoTitle('');
+  };
+
   // Handle Photo File Upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'EVIDENCE' | 'SUSPECT' | 'VICTIM') => {
+    if (target === 'EVIDENCE') {
+      if (e.target.files && e.target.files.length > 0) {
+        handleMultiFileUpload(e.target.files);
+      }
+      return;
+    }
+
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        if (target === 'EVIDENCE') setPhotoUrlInput(result);
         if (target === 'SUSPECT') setSuspectPhotoUrl(result);
         if (target === 'VICTIM') setEditVicPhoto(result);
       };
@@ -816,32 +945,94 @@ export const ClientCaseManagement: React.FC = () => {
     }
   };
 
-  // Dispatch Evidence Photo
-  const handleAddEvidencePhoto = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!photoUrlInput.trim()) return;
+  // Dispatch Evidence Photo(s) (supports single or multiple batch upload)
+  const handleAddEvidencePhoto = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
 
-    const newPhoto: EvidencePhoto = {
-      id: `p-${Date.now()}`,
-      title: photoTitle.trim() || 'Evidence Capture',
-      url: photoUrlInput.trim(),
-      caption: photoCaption.trim() || 'Classified case evidentiary image capture.',
-      timestamp: new Date().toISOString().substring(11, 19) + ' UTC',
+    let imagesToUpload = [...pendingImages];
+
+    // If pending list is empty but user supplied a single URL in photoUrlInput, stage it
+    if (imagesToUpload.length === 0 && photoUrlInput.trim()) {
+      imagesToUpload.push({
+        id: `p-${Date.now()}`,
+        url: photoUrlInput.trim(),
+        title: photoTitle.trim() || 'Evidence Capture',
+        caption: photoCaption.trim() || 'Classified case evidentiary image capture.',
+        fileName: 'Web Asset',
+        fileSize: 'URL'
+      });
+    }
+
+    if (imagesToUpload.length === 0) return;
+
+    const timestamp = new Date().toISOString().substring(11, 19) + ' UTC';
+
+    const newEvidencePhotos: EvidencePhoto[] = imagesToUpload.map((img, idx) => ({
+      id: `p-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
+      title: img.title.trim() || `Evidence Capture ${idx + 1}`,
+      url: img.url,
+      caption: batchCaption.trim() || img.caption || 'Classified case evidentiary image capture.',
+      timestamp: timestamp,
       uploadedBy: 'AGENT VANCE'
-    };
+    }));
 
     setCases((prevCases) =>
       prevCases.map((c) =>
         c.id === selectedCaseId
-          ? { ...c, evidencePhotos: [newPhoto, ...c.evidencePhotos] }
+          ? {
+              ...c,
+              evidencePhotos: [...newEvidencePhotos, ...c.evidencePhotos],
+              updates: [
+                {
+                  id: `log-ev-${Date.now()}`,
+                  timestamp: timestamp,
+                  author: 'AGENT VANCE',
+                  severity: 'INFO',
+                  message: `Uploaded ${newEvidencePhotos.length} new evidence capture(s) to case file: ${newEvidencePhotos
+                    .map((p) => p.title)
+                    .slice(0, 3)
+                    .join(', ')}${newEvidencePhotos.length > 3 ? '...' : ''}.`
+                },
+                ...c.updates
+              ]
+            }
           : c
       )
     );
 
-    setShowAddPhotoModal(false);
+    // Switch to EVIDENCE filter so new uploads appear immediately in view
+    if (photoGalleryCategory === 'SUSPECTS' || photoGalleryCategory === 'VICTIM') {
+      setPhotoGalleryCategory('EVIDENCE');
+    }
+
+    setPendingImages([]);
     setPhotoTitle('');
     setPhotoUrlInput('');
     setPhotoCaption('');
+    setBatchCaption('');
+    setShowAddPhotoModal(false);
+    setUploadSuccessMessage(
+      `Successfully uploaded ${newEvidencePhotos.length} evidence picture${newEvidencePhotos.length > 1 ? 's' : ''} to Case File!`
+    );
+    setTimeout(() => setUploadSuccessMessage(null), 4000);
+  };
+
+  // Delete evidence photo from case file
+  const handleDeleteEvidencePhoto = (photoId: string) => {
+    setCases((prevCases) =>
+      prevCases.map((c) =>
+        c.id === selectedCaseId
+          ? {
+              ...c,
+              evidencePhotos: c.evidencePhotos.filter((p) => p.id !== photoId)
+            }
+          : c
+      )
+    );
+    if (selectedPreviewItem?.id === photoId) {
+      setSelectedPreviewItem(null);
+      setPreviewPhotoUrl(null);
+    }
   };
 
   // Dispatch New Suspect
@@ -962,6 +1153,8 @@ export const ClientCaseManagement: React.FC = () => {
     const createdCase: ClientCase = {
       id: `case-${Date.now()}`,
       caseNumber: `CY-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      trackingId: newTrackingId.trim() || 'FBI‑INTL‑0926‑874512',
+      verificationNumber: newVerificationNumber.trim() || 'VCN‑473829',
       name: newClientName.trim(),
       alias: newClientAlias.trim() || 'UNCLASSIFIED_SUBJECT',
       classification: newClassification,
@@ -1034,6 +1227,8 @@ export const ClientCaseManagement: React.FC = () => {
     setNewVictimName('');
     setNewVictimPhoto('');
     setNewInvestigatedDuration('48 Hours');
+    setNewTrackingId('FBI‑INTL‑0926‑874512');
+    setNewVerificationNumber('VCN‑473829');
   };
 
   // Save edited nature of investigation
@@ -1048,11 +1243,15 @@ export const ClientCaseManagement: React.FC = () => {
 
   // Filter cases
   const filteredCases = cases.filter((c) => {
+    const normalize = (str: string) => (str || '').replace(/[\u2010-\u2015\u2212]/g, '-').toLowerCase();
+    const q = normalize(searchQuery);
     const matchesSearch =
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.caseNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.alias.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.victim.name.toLowerCase().includes(searchQuery.toLowerCase());
+      c.victim.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      normalize(c.trackingId).includes(q) ||
+      normalize(c.verificationNumber).includes(q);
 
     if (statusFilter === 'ALL') return matchesSearch;
     return matchesSearch && c.status === statusFilter;
@@ -1169,6 +1368,18 @@ export const ClientCaseManagement: React.FC = () => {
                     </span>
                   </div>
 
+                  {/* Official Case Identifiers */}
+                  <div className="text-[9px] font-mono space-y-1 mb-2 bg-slate-950/90 p-2 border border-slate-800/80">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 font-bold uppercase">Tracking ID:</span>
+                      <span className="text-cyan-300 font-bold tracking-tight">{c.trackingId}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 font-bold uppercase">Verification Number:</span>
+                      <span className="text-emerald-400 font-bold tracking-tight">{c.verificationNumber}</span>
+                    </div>
+                  </div>
+
                   <div className="text-[10px] text-slate-400 mb-2 flex items-center justify-between">
                     <span className="text-cyan-400 font-semibold">ALIAS: {c.alias}</span>
                     <span className="text-slate-400 font-mono text-[9px] flex items-center space-x-1 bg-slate-950 px-1 py-0.5 border border-slate-800">
@@ -1230,6 +1441,35 @@ export const ClientCaseManagement: React.FC = () => {
                 <h3 className="text-xl sm:text-2xl font-bold text-slate-100 tracking-wide mt-1">
                   CLIENT CASE: {activeCase.name} ({activeCase.alias})
                 </h3>
+
+                {/* Active Case Tracking ID & Verification Number Bar */}
+                <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
+                  <div className="flex items-center space-x-1.5 bg-slate-900/90 border border-cyan-500/50 px-2.5 py-1 shadow-[0_0_8px_rgba(6,182,212,0.1)]">
+                    <ShieldCheck className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Tracking ID:</span>
+                    <span className="font-mono text-cyan-300 font-bold tracking-wider">{activeCase.trackingId}</span>
+                    <button
+                      onClick={() => handleCopyText(activeCase.trackingId, 'tracking-hdr')}
+                      className="text-slate-400 hover:text-cyan-300 transition-colors p-0.5 ml-1"
+                      title="Copy Tracking ID"
+                    >
+                      {copiedField === 'tracking-hdr' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center space-x-1.5 bg-slate-900/90 border border-emerald-500/50 px-2.5 py-1 shadow-[0_0_8px_rgba(16,185,129,0.1)]">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Verification Number:</span>
+                    <span className="font-mono text-emerald-300 font-bold tracking-wider">{activeCase.verificationNumber}</span>
+                    <button
+                      onClick={() => handleCopyText(activeCase.verificationNumber, 'vcn-hdr')}
+                      className="text-slate-400 hover:text-emerald-300 transition-colors p-0.5 ml-1"
+                      title="Copy Verification Number"
+                    >
+                      {copiedField === 'vcn-hdr' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center space-x-3">
@@ -1330,7 +1570,55 @@ export const ClientCaseManagement: React.FC = () => {
               </div>
 
               {/* Key Case Parameters Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* Tracking ID Card */}
+                <div className="bg-slate-900/60 border border-cyan-500/40 bg-cyan-950/20 p-3.5 space-y-1">
+                  <div className="flex items-center justify-between text-[10px] text-cyan-400 uppercase">
+                    <span className="flex items-center space-x-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+                      <span className="font-bold">Tracking ID:</span>
+                    </span>
+                    <button
+                      onClick={() => handleCopyText(activeCase.trackingId, 'tracking-grid')}
+                      className="text-slate-400 hover:text-cyan-300 p-0.5"
+                      title="Copy Tracking ID"
+                    >
+                      {copiedField === 'tracking-grid' ? (
+                        <Check className="w-3 h-3 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-cyan-300 font-mono font-bold tracking-wider">
+                    {activeCase.trackingId}
+                  </p>
+                </div>
+
+                {/* Verification Number Card */}
+                <div className="bg-slate-900/60 border border-emerald-500/40 bg-emerald-950/20 p-3.5 space-y-1">
+                  <div className="flex items-center justify-between text-[10px] text-emerald-400 uppercase">
+                    <span className="flex items-center space-x-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="font-bold">Verification Number:</span>
+                    </span>
+                    <button
+                      onClick={() => handleCopyText(activeCase.verificationNumber, 'vcn-grid')}
+                      className="text-slate-400 hover:text-emerald-300 p-0.5"
+                      title="Copy Verification Number"
+                    >
+                      {copiedField === 'vcn-grid' ? (
+                        <Check className="w-3 h-3 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-emerald-300 font-mono font-bold tracking-wider">
+                    {activeCase.verificationNumber}
+                  </p>
+                </div>
+
                 <div className="bg-slate-900/60 border border-slate-800 p-3.5 space-y-1">
                   <span className="text-[10px] text-slate-400 uppercase flex items-center space-x-1">
                     <Calendar className="w-3 h-3 text-cyan-400" />
@@ -1590,7 +1878,44 @@ export const ClientCaseManagement: React.FC = () => {
 
           {/* TAB 4: EVIDENCE & PHOTOS GALLERY */}
           {activeTab === 'PHOTOS' && (
-            <div className="space-y-6">
+            <div
+              className="space-y-6"
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDraggingGallery(true);
+              }}
+              onDragLeave={() => setIsDraggingGallery(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingGallery(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  handleMultiFileUpload(e.dataTransfer.files);
+                }
+              }}
+            >
+              {/* Success Notification Alert */}
+              {uploadSuccessMessage && (
+                <div className="bg-emerald-950/90 border border-emerald-500/80 p-3 text-emerald-300 text-xs font-mono flex items-center justify-between shadow-[0_0_12px_rgba(16,185,129,0.2)]">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="font-bold">{uploadSuccessMessage}</span>
+                  </div>
+                  <button
+                    onClick={() => setUploadSuccessMessage(null)}
+                    className="text-emerald-400 hover:text-emerald-200 p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Drag over overlay indicator for gallery */}
+              {isDraggingGallery && (
+                <div className="bg-cyan-950/80 border-2 border-dashed border-cyan-400 p-4 text-center text-cyan-300 text-xs font-mono font-bold animate-pulse">
+                  DROP EVIDENCE IMAGES HERE TO BATCH UPLOAD
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-3">
                 <div className="space-y-1">
                   <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
@@ -1602,13 +1927,41 @@ export const ClientCaseManagement: React.FC = () => {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => setShowAddPhotoModal(true)}
-                  className="px-3.5 py-1.5 bg-slate-900 border border-cyan-500 text-cyan-300 hover:bg-cyan-950 text-xs font-bold uppercase tracking-wider flex items-center space-x-1.5 shrink-0"
-                >
-                  <Upload className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>ADD EVIDENCE CAPTURE</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {/* Hidden Multi-file input for one-click selection */}
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    ref={multiFileInputRef}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        handleMultiFileUpload(e.target.files);
+                      }
+                      e.target.value = '';
+                    }}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => multiFileInputRef.current?.click()}
+                    className="px-3.5 py-1.5 bg-cyan-500 text-slate-950 hover:bg-cyan-400 text-xs font-bold uppercase tracking-wider flex items-center space-x-1.5 shadow-[0_0_10px_rgba(6,182,212,0.3)] transition-all"
+                    title="Select multiple images at once to upload"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-slate-950" />
+                    <span>SELECT MULTIPLE IMAGES</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setPendingImages([]);
+                      setShowAddPhotoModal(true);
+                    }}
+                    className="px-3.5 py-1.5 bg-slate-900 border border-slate-700 text-cyan-300 hover:bg-slate-800 text-xs font-bold uppercase tracking-wider flex items-center space-x-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>ADD EVIDENCE CAPTURE</span>
+                  </button>
+                </div>
               </div>
 
               {/* Gallery Category Filter Tabs */}
@@ -1654,18 +2007,32 @@ export const ClientCaseManagement: React.FC = () => {
                         {item.badgeText}
                       </span>
 
-                      {/* Zoom Button overlay */}
-                      <button
-                        onClick={() => {
-                          setSelectedPreviewItem(item);
-                          setPreviewPhotoUrl(item.url);
-                        }}
-                        className="absolute bottom-2 right-2 p-1.5 bg-slate-950/90 text-cyan-300 hover:bg-cyan-950 border border-cyan-500/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1 text-[10px] font-bold uppercase"
-                        title="Zoom & Inspect Image"
-                      >
-                        <Maximize2 className="w-3 h-3 text-cyan-400" />
-                        <span>ZOOM</span>
-                      </button>
+                      {/* Actions overlay */}
+                      <div className="absolute bottom-2 right-2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {item.category === 'EVIDENCE' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteEvidencePhoto(item.id);
+                            }}
+                            className="p-1.5 bg-slate-950/90 text-rose-400 hover:bg-rose-950 border border-rose-500/60 flex items-center space-x-1 text-[10px] font-bold uppercase"
+                            title="Delete Evidence Photo"
+                          >
+                            <Trash2 className="w-3 h-3 text-rose-400" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            setSelectedPreviewItem(item);
+                            setPreviewPhotoUrl(item.url);
+                          }}
+                          className="p-1.5 bg-slate-950/90 text-cyan-300 hover:bg-cyan-950 border border-cyan-500/60 flex items-center space-x-1 text-[10px] font-bold uppercase"
+                          title="Zoom & Inspect Image"
+                        >
+                          <Maximize2 className="w-3 h-3 text-cyan-400" />
+                          <span>ZOOM</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="p-3 flex-1 flex flex-col justify-between space-y-2 text-xs">
@@ -1829,100 +2196,266 @@ export const ClientCaseManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL 1: ADD EVIDENCE PHOTO */}
+      {/* MODAL 1: ADD EVIDENCE PHOTO(S) - MULTI-IMAGE SUPPORT */}
       {showAddPhotoModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-950 border border-slate-800 max-w-lg w-full p-6 font-mono space-y-4 relative shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-bold text-slate-100 uppercase tracking-widest flex items-center space-x-2">
-                <Upload className="w-4 h-4 text-cyan-400" />
-                <span>ATTACH CASE EVIDENCE PICTURE</span>
-              </h3>
+        <div
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          onClick={() => setShowAddPhotoModal(false)}
+        >
+          <div
+            className="bg-slate-950 border border-slate-800 max-w-2xl w-full max-h-[92vh] flex flex-col font-mono relative shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDraggingModal(true);
+            }}
+            onDragLeave={() => setIsDraggingModal(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDraggingModal(false);
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                handleMultiFileUpload(e.dataTransfer.files);
+              }
+            }}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4 bg-slate-950 shrink-0">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-1.5 bg-cyan-950 border border-cyan-500/60 text-cyan-400">
+                  <Upload className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100 uppercase tracking-widest flex items-center space-x-2">
+                    <span>ATTACH EVIDENCE PICTURES</span>
+                    {pendingImages.length > 0 && (
+                      <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/60 px-2 py-0.5">
+                        {pendingImages.length} SELECTED
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[10px] text-slate-400">
+                    Select multiple evidentiary captures simultaneously or drop files
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setShowAddPhotoModal(false)}
-                className="text-xs text-slate-500 hover:text-slate-300"
+                className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1 border border-slate-800 hover:border-slate-700"
               >
                 [ESC]
               </button>
             </div>
 
-            <form onSubmit={handleAddEvidencePhoto} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-[10px] text-slate-400 mb-1 uppercase">Evidence Title *</label>
-                <input
-                  type="text"
-                  required
-                  value={photoTitle}
-                  onChange={(e) => setPhotoTitle(e.target.value)}
-                  placeholder="e.g. Encrypted Network Bridge Snapshot"
-                  className="w-full bg-slate-900 border border-slate-700 p-2.5 text-slate-200 focus:outline-none focus:border-cyan-500"
-                />
-              </div>
+            {/* Modal Scrollable Body */}
+            <div className="p-6 space-y-5 overflow-y-auto text-xs flex-1">
+              {/* Hidden file input with 'multiple' attribute */}
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                ref={fileInputRef}
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    handleMultiFileUpload(e.target.files);
+                  }
+                  e.target.value = '';
+                }}
+                className="hidden"
+              />
 
-              <div>
-                <label className="block text-[10px] text-slate-400 mb-1 uppercase">
-                  Image Source URL or Local File
-                </label>
-                <input
-                  type="text"
-                  value={photoUrlInput}
-                  onChange={(e) => setPhotoUrlInput(e.target.value)}
-                  placeholder="Paste image URL (https://...)"
-                  className="w-full bg-slate-900 border border-slate-700 p-2.5 text-slate-200 focus:outline-none focus:border-cyan-500 mb-2"
-                />
-
-                <div className="flex items-center space-x-3">
-                  <span className="text-[10px] text-slate-500 uppercase">OR SELECT FILE:</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    ref={fileInputRef}
-                    onChange={(e) => handleFileUpload(e, 'EVIDENCE')}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-3 py-1 bg-slate-900 border border-slate-700 text-cyan-400 text-xs font-bold uppercase hover:bg-slate-800"
-                  >
-                    BROWSE LOCAL DISK
-                  </button>
+              {/* Multi-file Dropzone Box */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center space-y-2 group ${
+                  isDraggingModal
+                    ? 'border-cyan-400 bg-cyan-950/40 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
+                    : 'border-slate-700 bg-slate-900/50 hover:border-cyan-500 hover:bg-slate-900/80'
+                }`}
+              >
+                <div className="p-3 bg-slate-950 border border-slate-700 group-hover:border-cyan-500/70 transition-colors">
+                  <Layers className="w-6 h-6 text-cyan-400" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-200 text-xs uppercase tracking-wide group-hover:text-cyan-300 transition-colors">
+                    CLICK TO BROWSE & SELECT MULTIPLE IMAGES
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Or drag and drop multiple photo files directly into this area
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2 text-[10px] text-slate-500 pt-1">
+                  <span>SUPPORTED: JPG, PNG, WEBP, GIF</span>
+                  <span>•</span>
+                  <span className="text-cyan-400/90 font-bold">MULTI-SELECT ENABLED</span>
                 </div>
               </div>
 
-              {photoUrlInput && (
-                <div className="border border-slate-800 p-2 aspect-video bg-slate-900 overflow-hidden">
-                  <img src={photoUrlInput} alt="Preview" className="w-full h-full object-cover" />
+              {isReadingFiles && (
+                <div className="flex items-center justify-center space-x-2 py-3 bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 text-xs">
+                  <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
+                  <span>Processing and staging selected images...</span>
                 </div>
               )}
 
+              {/* Staged Pending Images Preview List */}
+              {pendingImages.length > 0 && (
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <span className="text-[11px] font-bold text-cyan-400 uppercase flex items-center space-x-1.5">
+                      <FileCheck className="w-4 h-4 text-cyan-400" />
+                      <span>STAGED EVIDENCE CAPTURES ({pendingImages.length})</span>
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-[10px] px-2 py-1 bg-slate-900 border border-slate-700 hover:border-cyan-500 text-cyan-300 font-bold uppercase"
+                      >
+                        + ADD MORE IMAGES
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingImages([])}
+                        className="text-[10px] px-2 py-1 bg-slate-900 border border-slate-700 hover:border-rose-500 text-rose-400 font-bold uppercase"
+                      >
+                        CLEAR ALL
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-1">
+                    {pendingImages.map((img, idx) => (
+                      <div
+                        key={img.id}
+                        className="bg-slate-900 border border-slate-800 p-2.5 flex space-x-3 items-start relative group hover:border-cyan-500/60 transition-colors"
+                      >
+                        <div className="w-20 h-20 bg-slate-950 border border-slate-800 overflow-hidden shrink-0 relative">
+                          <img
+                            src={img.url}
+                            alt={img.title}
+                            className="w-full h-full object-cover"
+                          />
+                          <span className="absolute bottom-0 left-0 bg-slate-950/90 text-cyan-400 text-[8px] font-mono px-1 border-t border-r border-slate-800">
+                            #{idx + 1}
+                          </span>
+                        </div>
+
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] text-slate-500 truncate max-w-[120px]">
+                              {img.fileName}
+                            </span>
+                            {img.fileSize && (
+                              <span className="text-[8px] text-cyan-400/90 font-mono">
+                                {img.fileSize}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-[8px] text-slate-500 uppercase">TITLE</label>
+                            <input
+                              type="text"
+                              value={img.title}
+                              onChange={(e) => handleUpdatePendingImageTitle(img.id, e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-800 p-1 text-[11px] text-slate-200 focus:outline-none focus:border-cyan-500"
+                              placeholder="Title..."
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePendingImage(img.id)}
+                          className="p-1 text-slate-500 hover:text-rose-400 hover:bg-slate-950 transition-colors"
+                          title="Remove image from queue"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Batch or Single Caption Field */}
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1 uppercase">Caption & Technical Notes</label>
+                <label className="block text-[10px] text-slate-400 mb-1 uppercase">
+                  Caption & Forensic Description {pendingImages.length > 1 ? '(Applied to all images in batch)' : ''}
+                </label>
                 <textarea
-                  value={photoCaption}
-                  onChange={(e) => setPhotoCaption(e.target.value)}
-                  rows={3}
-                  placeholder="Technical description of the evidence..."
+                  value={batchCaption || photoCaption}
+                  onChange={(e) => {
+                    setBatchCaption(e.target.value);
+                    setPhotoCaption(e.target.value);
+                  }}
+                  rows={2}
+                  placeholder="Enter classified evidentiary notes or description..."
                   className="w-full bg-slate-900 border border-slate-700 p-2.5 text-slate-200 focus:outline-none focus:border-cyan-500 resize-none"
                 />
               </div>
 
-              <div className="flex justify-end space-x-3 pt-2">
+              {/* Web URL fallback option */}
+              <div className="pt-2 border-t border-slate-800 space-y-2">
+                <span className="text-[10px] text-slate-400 uppercase flex items-center space-x-1.5">
+                  <ExternalLink className="w-3 h-3 text-cyan-400" />
+                  <span>OR ADD FROM DIRECT WEB IMAGE URL:</span>
+                </span>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={photoUrlInput}
+                    onChange={(e) => setPhotoUrlInput(e.target.value)}
+                    placeholder="Paste image URL (https://...)"
+                    className="flex-1 bg-slate-900 border border-slate-700 p-2 text-slate-200 focus:outline-none focus:border-cyan-500 text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddUrlToPending}
+                    disabled={!photoUrlInput.trim()}
+                    className="px-3 py-2 bg-slate-900 border border-slate-700 text-cyan-400 hover:bg-slate-800 disabled:opacity-40 text-xs font-bold uppercase whitespace-nowrap"
+                  >
+                    + ADD URL TO QUEUE
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-t border-slate-800 bg-slate-950 gap-3 shrink-0">
+              <span className="text-[10px] text-slate-500">
+                {pendingImages.length > 0
+                  ? `${pendingImages.length} image capture(s) ready for dispatch`
+                  : photoUrlInput.trim()
+                  ? '1 web image ready for dispatch'
+                  : 'Select one or more images from local disk to begin'}
+              </span>
+
+              <div className="flex items-center space-x-3 self-end sm:self-auto">
                 <button
                   type="button"
-                  onClick={() => setShowAddPhotoModal(false)}
-                  className="px-4 py-2 bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200"
+                  onClick={() => {
+                    setShowAddPhotoModal(false);
+                    setPendingImages([]);
+                  }}
+                  className="px-4 py-2 bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 text-xs uppercase"
                 >
                   CANCEL
                 </button>
                 <button
-                  type="submit"
-                  className="px-4 py-2 bg-slate-900 border border-cyan-500 text-cyan-300 font-bold hover:bg-cyan-950 uppercase"
+                  type="button"
+                  onClick={() => handleAddEvidencePhoto()}
+                  disabled={pendingImages.length === 0 && !photoUrlInput.trim()}
+                  className="px-5 py-2 bg-cyan-500 text-slate-950 font-bold hover:bg-cyan-400 uppercase text-xs flex items-center space-x-2 disabled:opacity-40 disabled:hover:bg-cyan-500 shadow-[0_0_12px_rgba(6,182,212,0.3)] transition-all"
                 >
-                  ATTACH PICTURE
+                  <Upload className="w-3.5 h-3.5 text-slate-950" />
+                  <span>
+                    {pendingImages.length > 0
+                      ? `UPLOAD ALL (${pendingImages.length}) PICTURES`
+                      : 'ATTACH PICTURE'}
+                  </span>
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -2287,6 +2820,37 @@ export const ClientCaseManagement: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] text-cyan-400 mb-1 uppercase font-bold flex items-center space-x-1">
+                    <ShieldCheck className="w-3 h-3 text-cyan-400" />
+                    <span>Tracking ID *</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newTrackingId}
+                    onChange={(e) => setNewTrackingId(e.target.value)}
+                    placeholder="FBI‑INTL‑0926‑874512"
+                    className="w-full bg-slate-900 border border-slate-700 p-2.5 text-cyan-300 font-mono text-xs focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-emerald-400 mb-1 uppercase font-bold flex items-center space-x-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span>Verification Number *</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newVerificationNumber}
+                    onChange={(e) => setNewVerificationNumber(e.target.value)}
+                    placeholder="VCN‑473829"
+                    className="w-full bg-slate-900 border border-slate-700 p-2.5 text-emerald-300 font-mono text-xs focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[10px] text-cyan-400 mb-1 uppercase font-bold flex items-center space-x-1">
                   <Clock className="w-3 h-3 text-cyan-400" />
@@ -2386,6 +2950,28 @@ export const ClientCaseManagement: React.FC = () => {
                   <span>ACTIVE CASE:</span>
                   <span className="text-slate-200 font-bold">{activeCase.name} ({activeCase.caseNumber})</span>
                 </div>
+                <div className="flex justify-between">
+                  <span>TRACKING ID:</span>
+                  <span className="text-cyan-400 font-mono font-bold">{activeCase.trackingId}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>VERIFICATION NO:</span>
+                  <span className="text-emerald-400 font-mono font-bold">{activeCase.verificationNumber}</span>
+                </div>
+
+                {selectedPreviewItem?.category === 'EVIDENCE' && (
+                  <button
+                    onClick={() => {
+                      if (selectedPreviewItem?.id) {
+                        handleDeleteEvidencePhoto(selectedPreviewItem.id);
+                      }
+                    }}
+                    className="w-full mt-2 py-2 bg-rose-950/40 border border-rose-600/70 text-rose-300 hover:bg-rose-950 hover:border-rose-500 font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 transition-all text-[10px]"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                    <span>REMOVE FROM EVIDENCE DOSSIER</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => {
